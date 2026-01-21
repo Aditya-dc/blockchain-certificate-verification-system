@@ -4,7 +4,11 @@ const crypto = require("crypto");
 const multer = require("multer");
 const pdfParse = require("pdf-parse"); // STABLE VERSION 1.1.1
 
+
+const authRoutes = require("./routes/auth");
+const { requireAuth, requireIssuer } = require("./middleware/auth");
 const { contract } = require("./utils/blockchain");
+const db = require("./utils/db");
 
 // Multer: store file in memory
 const upload = multer({ storage: multer.memoryStorage() });
@@ -12,7 +16,17 @@ const upload = multer({ storage: multer.memoryStorage() });
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use("/auth", authRoutes);
 
+
+// (async () => {
+//   try {
+//     const [rows] = await db.query("SELECT 1");
+//     console.log("✅ MySQL connected");
+//   } catch (err) {
+//     console.error("❌ MySQL connection failed", err);
+//   }
+// })();
 /**
  * Hash certificate content using SHA-256
  */
@@ -35,7 +49,7 @@ function normalizeText(text) {
  * ISSUE CERTIFICATE
  * =========================
  */
-app.post("/issue", upload.single("certificatePdf"), async (req, res) => {
+app.post("/issue",requireAuth,requireIssuer, upload.single("certificatePdf"), async (req, res) => {
   try {
     let content = "";
 
@@ -59,13 +73,41 @@ app.post("/issue", upload.single("certificatePdf"), async (req, res) => {
 
     const normalized = normalizeText(content);
     const hash = hashCertificate(normalized);
+    // Check if certificate already issued
+    const db = require("./utils/db");
+const [existing] = await db.query(
+  "SELECT id FROM certificates WHERE certificate_hash = ?",
+  [hash]
+);
+
+if (existing.length > 0) {
+  return res.status(400).json({
+    error: "Certificate already issued"
+  });
+}
+
 
     const tx = await contract.issueCertificate(hash);
-    await tx.wait();
+const receipt = await tx.wait();
+
+// Save metadata in DB
+
+await db.query(
+  `INSERT INTO certificates 
+   (certificate_hash, issuer_id, blockchain_tx_hash) 
+   VALUES (?, ?, ?)`,
+  [
+    hash,
+    req.user.id,           // issuer from JWT
+    receipt.hash
+  ]
+);
+
 
     res.json({
       message: "Certificate issued successfully",
       hash,
+      txHash: receipt.hash,
       source: req.file ? "pdf" : "text"
     });
   } catch (err) {
@@ -127,6 +169,29 @@ app.get("/", (req, res) => {
   res.send("Backend connected to blockchain");
 });
 
+
+/**
+ * Issuer Certificates
+ */
+app.get(
+  "/issuer/certificates",
+  requireAuth,
+  requireIssuer,
+  async (req, res) => {
+    try {
+      const [rows] = await db.query(
+        `SELECT id, certificate_hash, issued_at, blockchain_tx_hash
+         FROM certificates
+         WHERE issuer_id = ?`,
+        [req.user.id]
+      );
+
+      res.json(rows);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch certificates" });
+    }
+  }
+);
 /**
  * Start server
  */

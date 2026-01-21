@@ -1,17 +1,27 @@
-import IssueCertificate from "./pages/IssueCertificate";
+import Navbar from "./components/Navbar";
+import IssuerDashboard from "./pages/IssuerDashboard";
 import VerifyCertificate from "./pages/VerifyCertificate";
+import AuthPage from "./pages/AuthPage";
+import { useAuth } from "./context/AuthContext";
 
 function App() {
+  const { user } = useAuth();
+
+  // Not logged in → Auth page (login/signup toggle)
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  // Logged in → Dashboard
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial" }}>
-      <h1>Blockchain Certificate Verification System</h1>
-
-      <hr />
-      <IssueCertificate />
-
-      <hr />
-      <VerifyCertificate />
-    </div>
+    <>
+      <Navbar />
+      {user.role === "issuer" ? (
+        <IssuerDashboard />
+      ) : (
+        <VerifyCertificate />
+      )}
+    </>
   );
 }
 
