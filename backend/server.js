@@ -7,7 +7,7 @@ const pdfParse = require("pdf-parse"); // STABLE VERSION 1.1.1
 
 const authRoutes = require("./routes/auth");
 const { requireAuth, requireIssuer } = require("./middleware/auth");
-const { contract } = require("./utils/blockchain");
+const { contract, disputeContract  } = require("./utils/blockchain");
 const db = require("./utils/db");
 
 // Multer: store file in memory
@@ -192,6 +192,89 @@ app.get(
     }
   }
 );
+
+
+app.post("/raise-dispute", async (req, res) => {
+  try {
+    const { certificateId, reason } = req.body;
+
+    const tx = await disputeContract.raiseDispute(
+      certificateId,
+      reason
+    );
+
+    await tx.wait();
+
+    res.json({
+      success: true,
+      message: "Dispute raised successfully",
+      txHash: tx.hash
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      error: "Failed to raise dispute"
+    });
+  }
+});
+
+app.get("/disputes", async (req, res) => {
+  try {
+
+    const disputes = [];
+
+    const disputeCount = await disputeContract.disputeCount();
+
+    for (let i = 1; i <= disputeCount; i++) {
+      const d = await disputeContract.disputes(i);
+
+      disputes.push({
+        id: i,
+        certificateId: Number(d[0]),
+        raisedBy: d[1],
+        reason: d[2],
+        resolved: d[4],
+        certificateValid: d[5]
+      });
+    }
+
+    res.json(disputes);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch disputes" });
+  }
+});
+
+
+app.post("/resolve-dispute", async (req, res) => {
+  try {
+    const { disputeId, certificateValid } = req.body;
+
+    const tx = await disputeContract.resolveDispute(
+      disputeId,
+      certificateValid
+    );
+
+    await tx.wait();
+
+    res.json({
+      success: true,
+      message: "Dispute resolved",
+      txHash: tx.hash
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Failed to resolve dispute"
+    });
+  }
+});
 /**
  * Start server
  */

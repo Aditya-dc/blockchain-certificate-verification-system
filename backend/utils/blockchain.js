@@ -17,6 +17,8 @@ const wallet = new ethers.Wallet(privateKey, provider);
 const contractAddress =
   "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
+  const disputeContractAddress = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+
 // Contract instance
 const contract = new ethers.Contract(
   contractAddress,
@@ -24,7 +26,23 @@ const contract = new ethers.Contract(
   wallet
 );
 
+// Dispute contract ABI
+const disputeABI = [
+  "function raiseDispute(uint256 certificateId, string memory reason)",
+  "function submitEvidence(uint256 disputeId, string memory ipfsHash)",
+  "function resolveDispute(uint256 disputeId, bool certificateValid)",
+  "function disputeCount() view returns (uint256)",
+  "function disputes(uint256) view returns (uint256,address,string,string,bool,bool)"
+];
+
+// Dispute contract instance
+const disputeContract = new ethers.Contract(
+  disputeContractAddress,
+  disputeABI,
+  wallet
+);
 module.exports = {
   contract,
+  disputeContract,
   provider
 };

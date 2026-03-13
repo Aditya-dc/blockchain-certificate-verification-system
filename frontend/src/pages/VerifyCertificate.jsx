@@ -36,13 +36,36 @@ export default function VerifyCertificate() {
     }
   };
 
+  // NEW FUNCTION: Raise Dispute
+  const raiseDispute = async () => {
+    try {
+      const certificateId = prompt("Enter Certificate ID to dispute:");
+      const reason = prompt("Enter dispute reason:");
+
+      if (!certificateId || !reason) {
+        alert("Certificate ID and reason required");
+        return;
+      }
+
+      const res = await API.post("/raise-dispute", {
+        certificateId,
+        reason,
+      });
+
+      alert("Dispute raised successfully!\n\nTX: " + res.data.txHash);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to raise dispute");
+    }
+  };
+
   return (
     <div className="max-w-xl mx-auto mt-12 bg-white p-8 rounded-2xl shadow-xl">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">
         Verify Certificate
       </h2>
 
-      {/* Custom file picker */}
+      {/* File Picker */}
       <div className="mb-4">
         <label
           htmlFor="verifyPdf"
@@ -95,7 +118,7 @@ export default function VerifyCertificate() {
         </div>
       )}
 
-      {/* Verify button */}
+      {/* Verify Button */}
       <button
         onClick={verify}
         disabled={loading}
@@ -109,16 +132,30 @@ export default function VerifyCertificate() {
         {loading ? "Verifying..." : "Verify Certificate"}
       </button>
 
-      {/* Result */}
+      {/* Verification Result */}
       {result && (
-        <div
-          className={`mt-6 p-4 rounded-lg text-center font-bold ${
-            result.valid
-              ? "bg-green-100 text-green-700"
-              : "bg-red-100 text-red-700"
-          }`}
-        >
-          {result.valid ? "✅ VALID CERTIFICATE" : "❌ INVALID CERTIFICATE"}
+        <div className="mt-6 text-center">
+          <div
+            className={`p-4 rounded-lg font-bold ${
+              result.valid
+                ? "bg-green-100 text-green-700"
+                : "bg-red-100 text-red-700"
+            }`}
+          >
+            {result.valid
+              ? "✅ VALID CERTIFICATE"
+              : "❌ INVALID CERTIFICATE"}
+          </div>
+
+          {/* Raise Dispute Button (only if valid) */}
+          {result.valid && (
+            <button
+              onClick={raiseDispute}
+              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+            >
+              Raise Dispute
+            </button>
+          )}
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import Navbar from "./components/Navbar";
 import IssuerDashboard from "./pages/IssuerDashboard";
 import VerifyCertificate from "./pages/VerifyCertificate";
+import DisputeDashboard from "./pages/DisputeDashboard";
 import AuthPage from "./pages/AuthPage";
 import { useAuth } from "./context/AuthContext";
 
@@ -19,7 +20,10 @@ function App() {
       {user.role === "issuer" ? (
         <IssuerDashboard />
       ) : (
-        <VerifyCertificate />
+         <>
+    <VerifyCertificate />
+    <DisputeDashboard />
+  </>
       )}
     </>
   );
