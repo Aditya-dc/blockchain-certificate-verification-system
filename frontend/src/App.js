@@ -8,23 +8,20 @@ import { useAuth } from "./context/AuthContext";
 function App() {
   const { user } = useAuth();
 
-  // Not logged in → Auth page (login/signup toggle)
+  // Not logged in → Auth page
   if (!user) {
     return <AuthPage />;
   }
 
-  // Logged in → Dashboard
   return (
     <>
       <Navbar />
-      {user.role === "issuer" ? (
-        <IssuerDashboard />
-      ) : (
-         <>
-    <VerifyCertificate />
-    <DisputeDashboard />
-  </>
-      )}
+
+      {user.role === "issuer" && <IssuerDashboard />}
+
+      {user.role === "verifier" && <VerifyCertificate />}
+
+      {user.role === "arbitrator" && <DisputeDashboard />}
     </>
   );
 }

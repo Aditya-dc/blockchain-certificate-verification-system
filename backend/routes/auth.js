@@ -17,7 +17,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "All fields required" });
     }
 
-    if (!["issuer", "student"].includes(role)) {
+    if (!["issuer", "verifier", "arbitrator"].includes(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 

@@ -90,7 +90,8 @@ export default function AuthPage() {
                 className="w-full px-4 py-3 border rounded-xl"
               >
                 <option value="issuer">Issuer</option>
-                <option value="student">Student</option>
+                <option value="verifier">Verifier</option>
+                <option value="arbitrator">Arbitrator</option>
               </select>
             </>
           )}

@@ -10,11 +10,17 @@ contract DisputeManager {
         string evidenceHash;
         bool resolved;
         bool certificateValid;
+
+        uint256 validVotes;
+        uint256 revokeVotes;
     }
 
     uint256 public disputeCount;
 
     mapping(uint256 => Dispute) public disputes;
+
+    // track voting
+    mapping(uint256 => mapping(address => bool)) public hasVoted;
 
     event DisputeRaised(
         uint256 disputeId,
@@ -23,9 +29,10 @@ contract DisputeManager {
         string reason
     );
 
-    event EvidenceSubmitted(
+    event VoteCast(
         uint256 disputeId,
-        string evidenceHash
+        address voter,
+        bool voteValid
     );
 
     event DisputeResolved(
@@ -43,28 +50,49 @@ contract DisputeManager {
             reason: reason,
             evidenceHash: "",
             resolved: false,
-            certificateValid: true
+            certificateValid: true,
+            validVotes: 0,
+            revokeVotes: 0
         });
 
         emit DisputeRaised(disputeCount, certificateId, msg.sender, reason);
     }
 
     function submitEvidence(uint256 disputeId, string memory ipfsHash) public {
-
         require(disputeId <= disputeCount, "Invalid dispute");
 
         disputes[disputeId].evidenceHash = ipfsHash;
-
-        emit EvidenceSubmitted(disputeId, ipfsHash);
     }
 
-    function resolveDispute(uint256 disputeId, bool certificateValid) public {
+    function vote(uint256 disputeId, bool voteValid) public {
 
         require(disputeId <= disputeCount, "Invalid dispute");
+        require(!disputes[disputeId].resolved, "Already resolved");
+        require(!hasVoted[disputeId][msg.sender], "Already voted");
 
-        disputes[disputeId].resolved = true;
-        disputes[disputeId].certificateValid = certificateValid;
+        hasVoted[disputeId][msg.sender] = true;
 
-        emit DisputeResolved(disputeId, certificateValid);
+        if (voteValid) {
+            disputes[disputeId].validVotes++;
+        } else {
+            disputes[disputeId].revokeVotes++;
+        }
+
+        emit VoteCast(disputeId, msg.sender, voteValid);
+
+        // 🔥 Threshold = 2 votes
+        if (disputes[disputeId].validVotes >= 2) {
+            disputes[disputeId].resolved = true;
+            disputes[disputeId].certificateValid = true;
+
+            emit DisputeResolved(disputeId, true);
+        }
+
+        if (disputes[disputeId].revokeVotes >= 2) {
+            disputes[disputeId].resolved = true;
+            disputes[disputeId].certificateValid = false;
+
+            emit DisputeResolved(disputeId, false);
+        }
     }
 }

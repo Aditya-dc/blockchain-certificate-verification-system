@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
 import API from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function VerifyCertificate() {
+  const { user } = useAuth();
+
   const fileInputRef = useRef(null);
 
   const [file, setFile] = useState(null);
@@ -10,6 +13,13 @@ export default function VerifyCertificate() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [showModal, setShowModal] = useState(false);
+  const [reason, setReason] = useState("");
+  const [evidence, setEvidence] = useState(null); // 🔥 NEW
+
+  // =========================
+  // VERIFY
+  // =========================
   const verify = async () => {
     if (!file) {
       setError("Please select a certificate PDF to verify.");
@@ -36,23 +46,36 @@ export default function VerifyCertificate() {
     }
   };
 
-  // NEW FUNCTION: Raise Dispute
+  // =========================
+  // RAISE DISPUTE (IPFS)
+  // =========================
   const raiseDispute = async () => {
     try {
-      const certificateId = prompt("Enter Certificate ID to dispute:");
-      const reason = prompt("Enter dispute reason:");
-
-      if (!certificateId || !reason) {
-        alert("Certificate ID and reason required");
+      if (!reason) {
+        alert("Reason is required");
         return;
       }
 
-      const res = await API.post("/raise-dispute", {
-        certificateId,
-        reason,
-      });
+      const formData = new FormData();
+      formData.append("certificateId", result?.certificateId);
+      formData.append("reason", reason);
 
-      alert("Dispute raised successfully!\n\nTX: " + res.data.txHash);
+      if (evidence) {
+        formData.append("evidence", evidence); // 🔥 FILE SENT
+      }
+
+      const res = await API.post("/raise-dispute", formData);
+
+      alert(
+  res.data.ipfsHash
+    ? `Dispute raised!\n\nView Evidence:\nhttps://gateway.pinata.cloud/ipfs/${res.data.ipfsHash}`
+    : "Dispute raised (no evidence uploaded)"
+);
+
+      setShowModal(false);
+      setReason("");
+      setEvidence(null);
+
     } catch (err) {
       console.error(err);
       alert("Failed to raise dispute");
@@ -65,7 +88,7 @@ export default function VerifyCertificate() {
         Verify Certificate
       </h2>
 
-      {/* File Picker */}
+      {/* FILE PICKER */}
       <div className="mb-4">
         <label
           htmlFor="verifyPdf"
@@ -96,7 +119,51 @@ export default function VerifyCertificate() {
         />
       </div>
 
-      {/* PDF Preview */}
+      {/* MODAL */}
+      {showModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-xl shadow-lg w-96">
+
+            <h3 className="text-lg font-bold mb-4">
+              Raise Dispute
+            </h3>
+
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Enter dispute reason..."
+              className="w-full border rounded-lg p-2 mb-4"
+              rows={4}
+            />
+
+            {/* 🔥 NEW: FILE INPUT */}
+            <input
+              type="file"
+              onChange={(e) => setEvidence(e.target.files[0])}
+              className="mb-4"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 bg-gray-300 rounded"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={raiseDispute}
+                className="px-4 py-2 bg-red-600 text-white rounded"
+              >
+                Submit
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* PDF PREVIEW */}
       {previewUrl && (
         <div className="mt-6 rounded-2xl border bg-gray-50 shadow-inner">
           <div className="flex items-center justify-between px-4 py-2 border-b bg-white rounded-t-2xl">
@@ -118,7 +185,7 @@ export default function VerifyCertificate() {
         </div>
       )}
 
-      {/* Verify Button */}
+      {/* VERIFY BUTTON */}
       <button
         onClick={verify}
         disabled={loading}
@@ -132,34 +199,94 @@ export default function VerifyCertificate() {
         {loading ? "Verifying..." : "Verify Certificate"}
       </button>
 
-      {/* Verification Result */}
+      {/* RESULT */}
       {result && (
-        <div className="mt-6 text-center">
-          <div
-            className={`p-4 rounded-lg font-bold ${
-              result.valid
-                ? "bg-green-100 text-green-700"
-                : "bg-red-100 text-red-700"
-            }`}
-          >
-            {result.valid
-              ? "✅ VALID CERTIFICATE"
-              : "❌ INVALID CERTIFICATE"}
-          </div>
+  <div className="mt-6 text-center">
 
-          {/* Raise Dispute Button (only if valid) */}
-          {result.valid && (
-            <button
-              onClick={raiseDispute}
-              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-            >
-              Raise Dispute
-            </button>
-          )}
-        </div>
+    {/* VALID / INVALID */}
+    <div
+      className={`p-4 rounded-lg font-bold ${
+        result.valid
+          ? "bg-green-100 text-green-700"
+          : "bg-red-100 text-red-700"
+      }`}
+    >
+      {result.valid
+        ? "✅ VALID CERTIFICATE"
+        : "❌ INVALID CERTIFICATE"}
+    </div>
+
+    {/* STATUS */}
+    <div
+      className={`mt-3 font-bold ${
+        result.status === "VALID"
+          ? "text-green-600"
+          : result.status === "DISPUTED"
+          ? "text-yellow-600"
+          : result.status === "REVOKED"
+          ? "text-red-600"
+          : "text-gray-500"
+      }`}
+    >
+      Status: {result.status}
+    </div>
+
+    {/* 🔥 ADD REPUTATION HERE */}
+    {result.issuerReputation !== null && (
+      <div className="mt-2 text-sm font-medium">
+        Issuer Reputation:{" "}
+        <span
+          className={`${
+            result.issuerReputation >= 3
+              ? "text-green-600"
+              : result.issuerReputation >= 0
+              ? "text-yellow-600"
+              : "text-red-600"
+          }`}
+        >
+          {result.issuerReputation}
+        </span>
+      </div>
+    )}
+
+    {/* 🔥 OPTIONAL TRUST BADGE */}
+    {result.issuerReputation !== null && (
+      <div className="mt-2 text-sm font-medium">
+  {result.issuerReputation >= 3 && (
+    <span className="text-green-600">🟢 High Trust</span>
+  )}
+
+  {result.issuerReputation >= -1 && result.issuerReputation < 3 && (
+    <span className="text-yellow-600">🟡 Neutral Trust</span>
+  )}
+
+  {result.issuerReputation < -1 && (
+    <span className="text-red-600">🔴 Low Trust</span>
+  )}
+</div>
+    )}
+
+    {/* 🔥 OPTIONAL WARNING */}
+    {result.issuerReputation < 0 && (
+      <div className="mt-2 text-red-600 text-sm">
+        ⚠️ This issuer has low credibility. Verify carefully.
+      </div>
+    )}
+
+    {/* DISPUTE BUTTON */}
+    {result?.valid &&
+      result?.certificateId &&
+      user.role === "verifier" && (
+        <button
+          onClick={() => setShowModal(true)}
+          className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+        >
+          Raise Dispute
+        </button>
       )}
-
-      {/* Error */}
+  </div>
+)}
+      {/* ERROR */}
       {error && (
         <div className="mt-6 p-4 bg-red-100 text-red-700 rounded-lg text-sm text-center">
           {error}
